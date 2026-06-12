@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: talentsync-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/jobs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false # paste your MongoDB Atlas connection string in the Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_AI_KEY
+        sync: false # optional: Gemini key for AI skill-gap analysis
+      - key: AFFINDA_API_KEY
+        sync: false # optional
+      - key: ML_SERVICE_URL
+        value: http://localhost:8002 # not deployed; built-in fallbacks handle it
+      - key: NEWS_API_KEY
+        sync: false # optional

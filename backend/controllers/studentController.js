@@ -2,6 +2,7 @@ const Student = require('../models/Student');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const { rankJobs, matchCandidateToJob } = require('../services/matchingService');
+const { timeAgo } = require('../utils/timeAgo');
 
 // @desc    Get current student profile
 // @route   GET /api/student/profile
@@ -51,11 +52,11 @@ exports.saveJob = async (req, res) => {
     const student = await Student.findOne({ user: req.user._id });
     const jobId = req.params.jobId;
 
-    if (student.savedJobs.includes(jobId)) {
+    if (student.savedJobs.some(s => s.job.toString() === jobId)) {
       return res.status(400).json({ message: 'Job already saved' });
     }
 
-    student.savedJobs.push(jobId);
+    student.savedJobs.push({ job: jobId, savedAt: new Date() });
     await student.save();
     res.json({ message: 'Job saved successfully', savedJobs: student.savedJobs });
   } catch (error) {
@@ -70,7 +71,7 @@ exports.unsaveJob = async (req, res) => {
     const student = await Student.findOne({ user: req.user._id });
     const jobId = req.params.jobId;
 
-    student.savedJobs = student.savedJobs.filter(id => id.toString() !== jobId);
+    student.savedJobs = student.savedJobs.filter(s => s.job.toString() !== jobId);
     await student.save();
     res.json({ message: 'Job removed successfully', savedJobs: student.savedJobs });
   } catch (error) {
@@ -83,12 +84,13 @@ exports.unsaveJob = async (req, res) => {
 exports.getSavedJobs = async (req, res) => {
   try {
     const student = await Student.findOne({ user: req.user._id }).populate({
-      path: 'savedJobs',
+      path: 'savedJobs.job',
       populate: { path: 'company', select: 'companyName location' }
     });
-    
+
     if (!student) return res.json([]);
-    res.json(student.savedJobs || []);
+    // Return the job documents (same shape the frontend already expects)
+    res.json((student.savedJobs || []).map(s => s.job).filter(Boolean));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -98,10 +100,11 @@ exports.getSavedJobs = async (req, res) => {
 // @route   GET /api/student/recommendations
 exports.getRecommendations = async (req, res) => {
   try {
+    const startTime = Date.now();
     const student = await Student.findOne({ user: req.user._id });
     if (!student) return res.status(404).json({ message: 'Student profile not found' });
 
-    const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry');
+    const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry verifiedStatus');
     
     if (!student.skills || student.skills.length === 0) {
       return res.json(jobs.map(j => ({ ...j.toObject(), match: 0, matchData: null })));
@@ -115,8 +118,10 @@ exports.getRecommendations = async (req, res) => {
     };
 
     const rankedJobs = rankJobs(candidateData, jobs);
-    
-    console.log(`[Recommendations] Ranked ${rankedJobs.length} jobs for student ${student._id}`);
+
+    const elapsedMs = Date.now() - startTime;
+    res.set('X-Response-Time', `${elapsedMs}ms`);
+    console.log(`[Recommendations] Ranked ${rankedJobs.length} jobs for student ${student._id} in ${elapsedMs}ms`);
     res.json(rankedJobs);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -130,9 +135,13 @@ exports.getDashboardStats = async (req, res) => {
     const student = await Student.findOne({ user: req.user._id });
     if (!student) return res.status(404).json({ message: 'Student profile not found' });
 
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const DAY_START = new Date().setHours(0, 0, 0, 0);
+
     // 1. Matched Jobs & Top Match Score (using built-in engine)
     const jobs = await Job.find({ status: 'open' });
     let matchedJobsCount = 0;
+    let matchedThisWeek = 0;
     let topMatchScore = 0;
 
     if (student.skills && student.skills.length > 0) {
@@ -143,7 +152,10 @@ exports.getDashboardStats = async (req, res) => {
       };
 
       const ranked = rankJobs(candidateData, jobs);
-      matchedJobsCount = ranked.filter(j => j.match >= 50).length;
+      const matched = ranked.filter(j => j.match >= 50);
+      matchedJobsCount = matched.length;
+      // Real delta: matched jobs that were posted within the last 7 days
+      matchedThisWeek = matched.filter(j => new Date(j.createdAt).getTime() > Date.now() - WEEK_MS).length;
       topMatchScore = ranked.length > 0 ? Math.round(ranked[0].match) : 0;
     }
 
@@ -151,34 +163,35 @@ exports.getDashboardStats = async (req, res) => {
     const applications = await Application.find({ student: student._id })
       .populate({ path: 'job', populate: { path: 'company', select: 'companyName' } })
       .sort({ appliedAt: -1 });
-    
+
     const pendingReviewCount = applications.filter(a => a.status === 'pending').length;
 
-    // 3. Profile Views
-    student.profileViews = (student.profileViews || 120) + Math.floor(Math.random() * 5);
-    await student.save();
+    // 3. Profile Views — real counts from the view log (companies viewing candidates)
+    const viewsToday = (student.profileViewLog || []).filter(d => new Date(d).getTime() >= DAY_START).length;
 
-    // 4. Recent Activity
+    // 4. Recent Activity — real timestamps
     const populatedStudent = await Student.findById(student._id).populate({
-      path: 'savedJobs',
-      options: { limit: 5 },
+      path: 'savedJobs.job',
       populate: { path: 'company', select: 'companyName' }
     });
 
-    const recentSaved = (populatedStudent.savedJobs || []).map(j => ({
-      company: j.company?.companyName || 'Unknown',
-      role: j.title || 'Unknown Role',
-      status: 'Saved',
-      time: 'Recently',
-      color: '#635BFF',
-      date: j.createdAt || new Date()
-    }));
+    const recentSaved = (populatedStudent.savedJobs || [])
+      .filter(s => s.job)
+      .slice(-5)
+      .map(s => ({
+        company: s.job.company?.companyName || 'Unknown',
+        role: s.job.title || 'Unknown Role',
+        status: 'Saved',
+        time: timeAgo(s.savedAt),
+        color: '#635BFF',
+        date: s.savedAt
+      }));
 
     const recentApps = applications.slice(0, 3).map(a => ({
       company: a.job?.company?.companyName || 'Unknown',
       role: a.job?.title || 'Unknown Role',
       status: a.status.charAt(0).toUpperCase() + a.status.slice(1),
-      time: 'Just now',
+      time: timeAgo(a.appliedAt),
       color: a.status === 'rejected' ? '#ef4444' : (a.status === 'pending' ? '#f59e0b' : '#10b981'),
       date: a.appliedAt
     }));
@@ -193,21 +206,26 @@ exports.getDashboardStats = async (req, res) => {
     if (student.resumeUrl) strength += 25;
     if (student.skills && student.skills.length >= 3) strength += 20;
     if (student.university && student.degree) strength += 20;
-    
+
     const strengthTips = [
-       { done: true, label: 'Email verified' },
+       { done: true, label: 'Account created' },
        { done: !!student.bio, label: 'Add a professional bio' },
        { done: !!student.resumeUrl, label: 'Upload your resume' },
        { done: (student.skills?.length >= 3), label: 'Add 3+ skills' },
        { done: (!!student.university && !!student.degree), label: 'Complete education history' },
     ];
 
+    const scoreLabel = topMatchScore >= 80 ? 'Excellent fit available'
+      : topMatchScore >= 50 ? 'Good matches found'
+      : student.skills?.length ? 'Add more skills to improve'
+      : 'Upload your resume';
+
     res.json({
       kpis: [
-        { label: 'Matched Jobs', value: matchedJobsCount, delta: '+2 this week', color: '#6366f1' },
+        { label: 'Matched Jobs', value: matchedJobsCount, delta: `+${matchedThisWeek} this week`, color: '#6366f1' },
         { label: 'Applications Sent', value: applications.length, delta: `${pendingReviewCount} pending review`, color: '#f59e0b' },
-        { label: 'Profile Views', value: student.profileViews, delta: '+5 today', color: '#10b981' },
-        { label: 'Match Score', value: `${topMatchScore}%`, delta: topMatchScore > 80 ? 'Top 10%' : 'Keep improving!', color: '#ff6b00' },
+        { label: 'Profile Views', value: student.profileViews || 0, delta: `+${viewsToday} today`, color: '#10b981' },
+        { label: 'Match Score', value: `${topMatchScore}%`, delta: scoreLabel, color: '#ff6b00' },
       ],
       recentActivity,
       profileStrength: {

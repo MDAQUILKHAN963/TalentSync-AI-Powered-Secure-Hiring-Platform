@@ -5,8 +5,8 @@ const axios = require('axios');
  */
 class GoogleAIService {
   constructor() {
-    this.apiKey = process.env.GOOGLE_AI_KEY || 'AIzaSyC84M9MUA1q8qYSO0So4xssSW9HRdI3-SY';
-    this.apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+    this.apiKey = process.env.GOOGLE_AI_KEY;
+    this.apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
   }
 
   /**
@@ -16,6 +16,10 @@ class GoogleAIService {
    */
   async getSkillAnalysis(student, job) {
     try {
+      if (!this.apiKey) {
+        throw new Error('GOOGLE_AI_KEY is not configured');
+      }
+
       console.log(`[GoogleAI] Analyzing skill gap for student: ${student.user?.email || student._id} and job: ${job.title}`);
 
       const prompt = `

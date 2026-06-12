@@ -124,9 +124,9 @@ export default function ApplyJob() {
           <h2 className="job-summary-title">{job.title}</h2>
           <div className="job-summary-meta">
             <span><MapPin size={13} /> {job.location}</span>
-            <span><DollarSign size={13} /> {job.salaryRange || '$80k - $120k'}</span>
+            <span><DollarSign size={13} /> {job.salaryRange || 'Not disclosed'}</span>
             <span><Clock size={13} /> {job.jobType}</span>
-            <span><Briefcase size={13} /> {job.company?.industry || 'Technology'}</span>
+            {job.company?.industry && <span><Briefcase size={13} /> {job.company.industry}</span>}
           </div>
           <div className="job-summary-tags">
             {(job.skillsRequired || []).map(t => <span key={t} className="tag">{t}</span>)}

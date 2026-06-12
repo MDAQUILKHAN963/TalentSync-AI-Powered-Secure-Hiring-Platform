@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Upload, FileText, X, ShieldCheck } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { Upload, FileText, X, ShieldCheck, Loader2 } from 'lucide-react';
 import './CompanyVerificationForm.css';
 
 const DOC_TYPES = [
@@ -8,15 +10,50 @@ const DOC_TYPES = [
 ];
 
 export default function CompanyVerificationForm() {
-  const [docs, setDocs] = useState([]);
+  const navigate = useNavigate();
+  const [docs, setDocs] = useState([]); // { type, file }
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+  const pendingTypeRef = useRef(null);
 
-  const addDoc = (type) => {
-    if (!docs.find(d => d.type === type)) {
-      setDocs([...docs, { type, fileName: `${type.split(' ')[0].toLowerCase()}_document.pdf`, uploaded: true }]);
+  const pickFile = (type) => {
+    pendingTypeRef.current = type;
+    fileInputRef.current?.click();
+  };
+
+  const onFileChosen = (e) => {
+    const file = e.target.files?.[0];
+    const type = pendingTypeRef.current;
+    if (file && type && !docs.find(d => d.type === type)) {
+      setDocs([...docs, { type, file }]);
+    }
+    e.target.value = '';
+  };
+
+  const removeDoc = (type) => setDocs(docs.filter(d => d.type !== type));
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      docs.forEach(d => formData.append('documents', d.file));
+      formData.append('docTypes', JSON.stringify(docs.map(d => d.type)));
+
+      const token = localStorage.getItem('token');
+      await axios.post('/api/company/verification/documents', formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
-  const removeDoc = (type) => setDocs(docs.filter(d => d.type !== type));
 
   if (submitted) {
     return (
@@ -24,7 +61,10 @@ export default function CompanyVerificationForm() {
         <div className="cvf-success">
           <div className="cvf-success-icon"><ShieldCheck size={36} /></div>
           <h2>Documents Submitted!</h2>
-          <p>Your verification documents have been submitted for government review. You will be notified within 2–5 business days.</p>
+          <p>Your {docs.length} document{docs.length === 1 ? '' : 's'} were uploaded and your verification is now under review by the platform admin.</p>
+          <button className="submit-docs-btn ready" style={{ marginTop: 16 }} onClick={() => navigate('/dashboard/company/verification')}>
+            View Verification Status
+          </button>
         </div>
       </div>
     );
@@ -37,6 +77,15 @@ export default function CompanyVerificationForm() {
         <p>Upload the required documents to verify your company's legitimacy.</p>
       </div>
 
+      {/* Hidden real file input shared by all rows */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        style={{ display: 'none' }}
+        onChange={onFileChosen}
+      />
+
       <div className="cvf-grid">
         {/* Instructions */}
         <div className="cvf-panel info-panel">
@@ -46,7 +95,7 @@ export default function CompanyVerificationForm() {
               <li key={r}><span>ℹ️</span> {r}</li>
             ))}
           </ul>
-          <div className="review-time"><Clock /> Typical review time: <strong>2–5 business days</strong></div>
+          <div className="review-time"><Clock /> Documents are reviewed by the platform admin after submission.</div>
         </div>
 
         {/* Upload Area */}
@@ -63,11 +112,11 @@ export default function CompanyVerificationForm() {
                   </div>
                   {already ? (
                     <div className="doc-uploaded">
-                      <span className="doc-name">{already.fileName}</span>
+                      <span className="doc-name">{already.file.name}</span>
                       <button className="doc-remove" onClick={() => removeDoc(type)}><X size={13} /></button>
                     </div>
                   ) : (
-                    <button className="doc-upload-btn" onClick={() => addDoc(type)}>
+                    <button className="doc-upload-btn" onClick={() => pickFile(type)}>
                       <Upload size={13} /> Upload
                     </button>
                   )}
@@ -83,13 +132,15 @@ export default function CompanyVerificationForm() {
             </div>
           </div>
 
+          {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 8 }}>{error}</p>}
+
           <button
             className={`submit-docs-btn ${docs.length >= 2 ? 'ready' : ''}`}
-            disabled={docs.length < 2}
-            onClick={() => setSubmitted(true)}
+            disabled={docs.length < 2 || submitting}
+            onClick={handleSubmit}
           >
-            <ShieldCheck size={16} />
-            {docs.length < 2 ? `Upload ${2 - docs.length} more document${docs.length === 1 ? '' : 's'}` : 'Submit for Verification'}
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+            {submitting ? 'Uploading...' : docs.length < 2 ? `Upload ${2 - docs.length} more document${docs.length === 1 ? '' : 's'}` : 'Submit for Verification'}
           </button>
         </div>
       </div>

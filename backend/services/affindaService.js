@@ -194,17 +194,44 @@ async function parseWithAffinda(filePath) {
 }
 
 /**
- * Fallback: Parse resume using pdf-parse + keyword extraction
+ * Extract raw text from a PDF buffer.
+ * Tries pdf-parse first (fast), then modern pdfjs-dist — pdf-parse's bundled
+ * engine is from 2018 and rejects many modern PDFs with "bad XRef entry".
+ */
+async function extractPdfText(dataBuffer) {
+  try {
+    const pdfData = await pdfParse(dataBuffer);
+    if (pdfData.text && pdfData.text.trim()) return pdfData.text;
+  } catch (err) {
+    console.warn('[PDF Extract] pdf-parse failed, trying pdfjs-dist:', err.message);
+  }
+
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(dataBuffer) }).promise;
+  let text = '';
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+/**
+ * Fallback: Parse resume using local PDF text extraction + keyword matching
  */
 async function parseWithFallback(filePath) {
   try {
     const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(dataBuffer);
-    const text = pdfData.text || '';
+    const text = await extractPdfText(dataBuffer) || '';
     const textLower = text.toLowerCase();
 
-    // Extract skills via keyword matching
-    const skills = SKILL_KEYWORDS.filter(skill => textLower.includes(skill.toLowerCase()));
+    // Extract skills via keyword matching (word boundaries prevent false hits
+    // like "java" inside "javascript" or "go" inside "mongodb")
+    const skills = SKILL_KEYWORDS.filter(skill => {
+      const escaped = skill.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?<!\\w)${escaped}(?!\\w)`).test(textLower);
+    });
 
     // Detect education level
     const educationLevel = detectEducationLevel(textLower);

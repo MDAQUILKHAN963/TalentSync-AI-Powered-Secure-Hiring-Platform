@@ -149,18 +149,18 @@ export default function LandingPage() {
           <div className="stats-grid">
             <motion.div className="stat-card orange" variants={slideLeft} initial="hidden" whileInView="visible" viewport={{ once: true }}>
               <div className="stat-icon"><Users size={24} /></div>
-              <div className="stat-value"><span>100K USERS</span></div>
-              <p>TalentSync rapidly attracting a substantial user base of over 500,000 students within its first year.</p>
+              <div className="stat-value"><span>AI MATCHING</span></div>
+              <p>Every job ranked against your parsed resume with a transparent match score — skills, semantics, and experience weighted.</p>
             </motion.div>
             <motion.div className="stat-card black" variants={revealVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
               <div className="stat-icon"><Zap size={24} /></div>
-              <div className="stat-value"><span>98%</span></div>
-              <p>Users enjoy faster match rates and automated verification processing time.</p>
+              <div className="stat-value"><span>BIAS-FREE</span></div>
+              <p>Name, gender, age, and contact details are stripped before AI scoring — candidates are judged on skills alone.</p>
             </motion.div>
             <motion.div className="stat-card gray" variants={slideRight} initial="hidden" whileInView="visible" viewport={{ once: true }}>
               <div className="stat-icon"><Shield size={24} /></div>
-              <div className="stat-value"> <span>10K COMPANIES</span></div>
-              <p>A network of over 24,000 verified partner companies worldwide.</p>
+              <div className="stat-value"> <span>VERIFIED ONLY</span></div>
+              <p>Every company is verified against government registration data, and AI fraud detection blocks scam postings in real time.</p>
             </motion.div>
           </div>
         </Section>

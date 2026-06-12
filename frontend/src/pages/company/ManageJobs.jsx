@@ -16,18 +16,19 @@ export default function ManageJobs() {
   const fetchJobs = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('/api/jobs', {
+      // Company-scoped endpoint: own jobs only, with real applicant counts
+      const res = await axios.get('/api/company/jobs', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Filter for current company's jobs if not already filtered by backend
-      setJobs(res.data);
+      setJobs(res.data.map(j => ({
+        ...j,
+        active: j.status === 'open',
+        applicants: j.applicantCount,
+        tags: (j.skillsRequired || []).slice(0, 3)
+      })));
     } catch (err) {
       console.error('Error fetching jobs:', err);
-      // Fallback mocks
-      setJobs([
-        { id: 1, title: 'Frontend Developer', applicants: 42, posted: '5 days ago', deadline: '2025-12-31', active: true, tags: ['React', 'TypeScript'] },
-        { id: 2, title: 'ML Engineer', applicants: 29, posted: '1 week ago', deadline: '2026-01-15', active: true, tags: ['Python', 'PyTorch'] }
-      ]);
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -35,12 +36,13 @@ export default function ManageJobs() {
 
   const toggle = async (id) => {
     try {
+      const job = jobs.find(j => j._id === id);
       const token = localStorage.getItem('token');
-      const res = await axios.put(`/api/jobs/${id}`, 
-        { active: !jobs.find(j => (j.id || j._id) === id).active },
+      await axios.put(`/api/jobs/${id}`,
+        { status: job.active ? 'closed' : 'open' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setJobs(jobs.map(j => (j.id || j._id) === id ? { ...j, active: !j.active } : j));
+      setJobs(jobs.map(j => j._id === id ? { ...j, active: !j.active } : j));
     } catch (err) {
       console.error('Error toggling job:', err);
     }
@@ -53,7 +55,7 @@ export default function ManageJobs() {
       await axios.delete(`/api/jobs/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setJobs(jobs.filter(j => (j.id || j._id) !== id));
+      setJobs(jobs.filter(j => j._id !== id));
     } catch (err) {
       console.error('Error deleting job:', err);
     }

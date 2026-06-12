@@ -12,6 +12,7 @@ const resumeRoutes = require('./routes/resumes');
 const newsRoutes = require('./routes/news');
 const adminRoutes = require('./routes/admin');
 const studentRoutes = require('./routes/student');
+const companyRoutes = require('./routes/company');
 
 // Connect to MongoDB
 connectDB().then(() => {
@@ -34,6 +35,7 @@ app.use('/api/resumes', resumeRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/company', companyRoutes);
 
 // Optional: Fallback Error Handler
 app.use((err, req, res, next) => {

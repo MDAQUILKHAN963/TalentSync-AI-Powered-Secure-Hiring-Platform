@@ -21,6 +21,10 @@ const ApplicationSchema = new mongoose.Schema({
     enum: ['applied', 'screening', 'interview', 'technical', 'offer', 'hired'],
     default: 'applied'
   },
+  matchScore: {
+    type: Number,
+    default: 0
+  },
   coverLetter: {
     type: String,
     default: ''

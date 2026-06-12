@@ -35,9 +35,19 @@ const StudentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Timestamps of when companies viewed this profile (for real "+N today" stats)
+  profileViewLog: [{
+    type: Date
+  }],
   savedJobs: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Job'
+    job: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Job'
+    },
+    savedAt: {
+      type: Date,
+      default: Date.now
+    }
   }],
   // AI-parsed resume fields
   experience_years: {

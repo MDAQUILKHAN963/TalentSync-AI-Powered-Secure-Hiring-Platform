@@ -37,11 +37,11 @@ Students get live real-time IT news updates (tech layoffs, hiring trends, new co
 
 ## Technology Stack
 
-* **Frontend:** React (Web App)
-* **Backend:** PHP APIs
-* **Database:** MySQL
-* **AI/ML:** Python ML Model / Resume Parser API
-* **External APIs:** Government Registration Verification API, Email Notification API, News API
+* **Frontend:** React 19 + Vite + React Router + Tailwind CSS (Web App)
+* **Backend:** Node.js + Express 5 (REST APIs) with JWT auth
+* **Database:** MongoDB (Mongoose ODM; supports in-memory MongoDB for local dev)
+* **AI/ML:** Built-in Node TF-IDF matching engine + Python FastAPI microservice (Gemini, scikit-learn); Affinda + local `pdf-parse` resume parsing
+* **External APIs:** Government Registration Verification API (mocked), Google Gemini AI, News API
 
 ## Innovations & Future Expansions
 
@@ -53,7 +53,7 @@ Students get live real-time IT news updates (tech layoffs, hiring trends, new co
 
 ### Folder Structure
 
-- `/frontend` - Contains the React frontend web application.
-- `/backend` - Contains the PHP backend code and APIs.
-- `/ML_service` - Contains the ML models and Python-based utilities for AI matching.
+- `/frontend` - Contains the React (Vite) frontend web application.
+- `/backend` - Contains the Node.js/Express backend code and REST APIs.
+- `/ML_service` - Contains the Python FastAPI microservice and ML utilities for AI matching, parsing, and fraud detection.
 

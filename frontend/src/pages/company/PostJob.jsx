@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, ChevronRight, Eye } from 'lucide-react';
+import axios from 'axios';
+import { Check, ChevronRight, Eye, ShieldAlert, Loader2 } from 'lucide-react';
 import './PostJob.css';
 
 const STEPS = ['Job Details', 'Requirements', 'Salary & Location', 'Preview'];
@@ -11,12 +12,54 @@ const INITIAL = {
   location: '', remote: 'on-site', deadline: '',
 };
 
+// Backend Job model accepts these types only
+const TYPE_MAP = { 'Full-time': 'Full-time', 'Part-time': 'Part-time', 'Contract': 'Contract', 'Internship': 'Internship', 'Freelance': 'Contract' };
+
 export default function PostJob() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(INITIAL);
   const [published, setPublished] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handlePublish = async () => {
+    if (!form.title.trim() || !form.description.trim()) {
+      setError({ message: 'Job title and description are required.' });
+      return;
+    }
+
+    setPublishing(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const salaryRange = form.salary_min && form.salary_max
+        ? `${form.salary_min}–${form.salary_max} ${form.currency}`
+        : '';
+
+      await axios.post('/api/jobs', {
+        title: form.title,
+        description: form.description,
+        skillsRequired: form.skills.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+        location: form.remote === 'remote' ? 'Remote' : form.location,
+        salaryRange,
+        jobType: TYPE_MAP[form.type] || 'Full-time'
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setPublished(true);
+    } catch (err) {
+      setError({
+        message: err.response?.data?.message || 'Failed to post job. Please try again.',
+        reasons: err.response?.data?.reasons || []
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   if (published) {
     return (
@@ -130,11 +173,26 @@ export default function PostJob() {
           </div>
         )}
 
+        {error && (
+          <div style={{ margin: '16px 0', padding: '14px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+              <ShieldAlert size={18} /> {error.message}
+            </div>
+            {error.reasons?.length > 0 && (
+              <ul style={{ margin: '8px 0 0 26px', fontSize: 13, lineHeight: 1.7 }}>
+                {error.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+
         <div className="pj-nav">
           {step > 0 && <button className="pj-btn" onClick={() => setStep(step - 1)}>Back</button>}
           {step < STEPS.length - 1
             ? <button className="pj-btn primary" onClick={() => setStep(step + 1)}>Next <ChevronRight size={16} /></button>
-            : <button className="pj-btn primary" onClick={() => setPublished(true)}>Publish Job <Check size={16} /></button>
+            : <button className="pj-btn primary" onClick={handlePublish} disabled={publishing}>
+                {publishing ? <><Loader2 size={16} className="animate-spin" /> Publishing...</> : <>Publish Job <Check size={16} /></>}
+              </button>
           }
         </div>
       </div>

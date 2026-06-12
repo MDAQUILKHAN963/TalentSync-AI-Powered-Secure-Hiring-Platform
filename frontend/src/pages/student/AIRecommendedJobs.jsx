@@ -175,16 +175,18 @@ export default function AIRecommendedJobs() {
                 }}>
                   {Math.round(job.match || 0)}% match
                 </div>
-                 <JobCard 
+                 <JobCard
                   job={{
                     ...job,
                     id: jobId,
-                    company: typeof job.company === 'string' ? job.company : (job.company?.companyName || 'TechCorp'),
-                    location: job.location || (typeof job.company !== 'string' ? job.company?.location : '') || 'Remote',
+                    company: typeof job.company === 'string' ? job.company : (job.company?.companyName || ''),
+                    location: job.location || (typeof job.company !== 'string' ? job.company?.location : '') || 'Not specified',
+                    salary: job.salaryRange || 'Not disclosed',
                     type: job.type || job.jobType || 'Full-time',
-                    posted: job.posted || 'Recently',
-                    tags: Array.isArray(job.tags) ? job.tags : (Array.isArray(job.skillsRequired) ? job.skillsRequired : ['Tech'])
-                  }} 
+                    posted: job.createdAt ? `Posted ${Math.max(1, Math.floor((Date.now() - new Date(job.createdAt)) / 86400000))}d ago` : '',
+                    verified: typeof job.company !== 'string' && job.company?.verifiedStatus === 'verified',
+                    tags: Array.isArray(job.tags) ? job.tags : (Array.isArray(job.skillsRequired) ? job.skillsRequired : [])
+                  }}
                   onApply={handleApply} 
                   isSaved={(savedJobIds || []).includes(jobId)}
                   onToggleSave={handleToggleSave}

@@ -4,7 +4,16 @@ import NewsCard from '../../components/ui/NewsCard';
 import { Rss, RefreshCcw } from 'lucide-react';
 import './ITNewsFeed.css';
 
-const CATEGORIES = ['All', 'AI & ML', 'Frontend', 'Backend', 'DevOps', 'Languages'];
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const ms = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(ms)) return dateStr;
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
 export default function ITNewsFeed() {
   const [articles, setArticles] = useState([]);
@@ -48,12 +57,6 @@ export default function ITNewsFeed() {
         </button>
       </div>
 
-      <div className="news-categories">
-        {CATEGORIES.map((c, i) => (
-          <button key={c} className={`news-cat-btn ${i === 0 ? 'active' : ''}`}>{c}</button>
-        ))}
-      </div>
-
       {loading ? (
         <div className="news-loading-state">
           <RefreshCcw size={32} className="spin" />
@@ -70,10 +73,9 @@ export default function ITNewsFeed() {
             <NewsCard key={idx} article={{
               ...article,
               id: idx,
-              source: typeof article.source === 'string' ? article.source : (article.source?.name || 'Tech News'),
-              readTime: '4 min',
-              category: 'Technology',
-              summary: article.description || 'Global tech update from reliable sources.'
+              source: typeof article.source === 'string' ? article.source : (article.source?.name || ''),
+              publishedAt: timeAgo(article.publishedAt),
+              summary: article.description || ''
             }} />
           ))}
         </div>

@@ -22,11 +22,7 @@ export default function SavedJobs() {
       setJobs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching saved jobs:', err);
-      // Fallback mocks for demo if backend is empty
-      setJobs([
-        { id: 1, title: 'Frontend Developer', company: { companyName: 'Google', location: 'Remote' }, salary: '$95k – $130k', type: 'Full-time', tags: ['React', 'TypeScript'], savedAt: '2 days ago', color: '#4285F4' },
-        { id: 2, title: 'ML Engineer', company: { companyName: 'OpenAI', location: 'San Francisco, CA' }, salary: '$140k – $180k', type: 'Full-time', tags: ['Python', 'PyTorch'], savedAt: '4 days ago', color: '#10b981' },
-      ]);
+      setJobs([]);
     } finally {
       setLoading(false);
     }

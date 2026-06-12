@@ -5,21 +5,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import './StudentDashboard.css';
 
-const kpisData = [
-  { icon: Briefcase, label: 'Matched Jobs', value: '24', delta: '+3 this week', type: 'blue' },
-  { icon: Send, label: 'Applications Sent', value: '7', delta: '2 pending review', type: 'orange' },
-  { icon: Eye, label: 'Profile Views', value: '142', delta: '+18 today', type: 'green' },
-  { icon: TrendingUp, label: 'Match Score', value: '87%', delta: 'Top 10%', type: 'purple' },
-];
-
-const recentActivityData = [
-  { company: 'Google', role: 'SWE Intern', status: 'Applied', time: '2h ago', color: '#4285F4' },
-  { company: 'Microsoft', role: 'Data Analyst', status: 'Viewed', time: '1d ago', color: '#00A4EF' },
-  { company: 'Stripe', role: 'Frontend Engineer', status: 'Saved', time: '2d ago', color: '#635BFF' },
-  { company: 'Notion', role: 'Product Manager', status: 'Applied', time: '3d ago', color: '#000000' },
-];
-
-const statusColor = { 
+const statusColor = {
   Applied: '#f59e0b', 
   Viewed: '#6366f1', 
   Saved: '#10b981', 

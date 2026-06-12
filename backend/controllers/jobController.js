@@ -3,6 +3,8 @@ const Company = require('../models/Company');
 const Application = require('../models/Application');
 const Student = require('../models/Student');
 const axios = require('axios');
+const { matchCandidateToJob } = require('../services/matchingService');
+const { detectFraud } = require('../services/fraudDetectionService');
 
 // @desc    Create a new job
 // @route   POST /api/jobs
@@ -14,34 +16,42 @@ exports.createJob = async (req, res) => {
       return res.status(403).json({ message: 'Only verified companies can post jobs' });
     }
 
-    // 1. Run AI Fraud Detection before saving
+    // 1. Run Fraud Detection before saving (AI service first, rule-based fallback)
     let fraudRisk = 0;
     let flaggedReasons = [];
-    
-    try {
-      if (req.body.description) {
+
+    if (req.body.description) {
+      let analysis = null;
+
+      // Try the Python ML service (Gemini-based) first
+      try {
         const mlResponse = await axios.post(`${process.env.ML_SERVICE_URL}/fraud-detect`, {
           job_description: req.body.description
-        });
-        
+        }, { timeout: 5000 });
+
         if (mlResponse.data.success) {
-          const analysis = mlResponse.data.analysis;
-          fraudRisk = analysis.risk_score || 0;
-          flaggedReasons = analysis.reasons || [];
-          
-          // Reject immediately if highly fraudulent
-          if (analysis.is_fraud || fraudRisk > 70) {
-             return res.status(400).json({ 
-                 message: 'Job posting blocked due to security concerns.', 
-                 reasons: flaggedReasons 
-             });
-          }
+          analysis = { ...mlResponse.data.analysis, source: 'gemini-ml' };
         }
+      } catch (err) {
+        console.warn('[FraudDetect] ML service unavailable, using rule-based detector:', err.message);
       }
-    } catch (err) {
-      console.error('Fraud Detection Error:', err.message);
-      // We log but don't strictly block if ML service is temporarily down, or we could block.
-      // Letting it pass with 0 risk for now to ensure system stability if AI is down.
+
+      // Fallback: built-in rule-based detector (always available)
+      if (!analysis) {
+        analysis = detectFraud(req.body.description);
+      }
+
+      fraudRisk = analysis.risk_score || 0;
+      flaggedReasons = analysis.reasons || [];
+      console.log(`[FraudDetect] source=${analysis.source} risk=${fraudRisk}${flaggedReasons.length ? ' reasons=' + flaggedReasons.join('; ') : ''}`);
+
+      // Reject immediately if highly fraudulent
+      if (analysis.is_fraud || fraudRisk > 70) {
+        return res.status(400).json({
+          message: 'Job posting blocked due to security concerns.',
+          reasons: flaggedReasons
+        });
+      }
     }
 
     // 2. Create the Job
@@ -62,8 +72,72 @@ exports.createJob = async (req, res) => {
 // @route   GET /api/jobs
 exports.getJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry');
+    const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry verifiedStatus');
     res.json(jobs);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get a single job with real applicant count (tracks views)
+// @route   GET /api/jobs/:id
+exports.getJobById = async (req, res) => {
+  try {
+    const job = await Job.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { views: 1 } },
+      { new: true }
+    ).populate('company', 'companyName location industry website verifiedStatus description');
+
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+
+    const applicantCount = await Application.countDocuments({ job: job._id });
+
+    res.json({ ...job.toObject(), applicantCount });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update a job (owner company only) — e.g. open/close it
+// @route   PUT /api/jobs/:id
+exports.updateJob = async (req, res) => {
+  try {
+    const company = await Company.findOne({ user: req.user._id });
+    const job = await Job.findById(req.params.id);
+
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+    if (!company || job.company.toString() !== company._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to update this job' });
+    }
+
+    const fields = ['title', 'description', 'skillsRequired', 'location', 'salaryRange', 'jobType', 'status'];
+    fields.forEach(f => {
+      if (req.body[f] !== undefined) job[f] = req.body[f];
+    });
+
+    await job.save();
+    res.json(job);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a job and its applications (owner company only)
+// @route   DELETE /api/jobs/:id
+exports.deleteJob = async (req, res) => {
+  try {
+    const company = await Company.findOne({ user: req.user._id });
+    const job = await Job.findById(req.params.id);
+
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+    if (!company || job.company.toString() !== company._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this job' });
+    }
+
+    await Application.deleteMany({ job: job._id });
+    await job.deleteOne();
+    res.json({ message: 'Job and its applications deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -87,25 +161,30 @@ exports.applyJob = async (req, res) => {
       return res.status(400).json({ message: 'You have already applied for this job' });
     }
 
-    // AI Matching Logic
+    // AI Matching Logic — use the same built-in engine as recommendations
     let matchScore = 0;
     try {
       const job = await Job.findById(req.params.id);
-      const mlResponse = await axios.post(`${process.env.ML_SERVICE_URL}/match-jobs`, {
-        candidate_skills: student.skills,
-        jobs: [{
-          id: job._id,
-          skillsRequired: job.skillsRequired,
-          description: job.description
-        }]
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+
+      const candidateData = {
+        skills: student.skills || [],
+        raw_text: student.parsedResumeText || (student.skills || []).join(' '),
+        experience_years: student.experience_years || 0
+      };
+
+      const matchData = matchCandidateToJob(candidateData, {
+        skillsRequired: job.skillsRequired || [],
+        description: job.description || '',
+        minExperience: job.minExperience || 0
       });
 
-      if (mlResponse.data.success && mlResponse.data.matches.length > 0) {
-        matchScore = mlResponse.data.matches[0].score;
-      }
+      matchScore = matchData.match_percent;
     } catch (err) {
       console.error('AI Matching Error:', err.message);
-      matchScore = 50; // Decent fallback score
+      matchScore = 0; // unscored — never fabricate a score
     }
 
     const application = await Application.create({
@@ -156,7 +235,9 @@ exports.getJobSkillGap = async (req, res) => {
           "Ensure your resume highlights the required skills mentioned in the job description.",
           "Add quantifiable achievements for the skills you already possess."
         ],
-        suitability_score: Math.round((student.skills.length / (job.skillsRequired.length || 1)) * 100),
+        suitability_score: Math.min(Math.round((student.skills.filter(s =>
+          job.skillsRequired.some(js => js.toLowerCase() === s.toLowerCase())
+        ).length / (job.skillsRequired.length || 1)) * 100), 100),
         recommendation: "Review the job description to understand key requirements and tailor your application accordingly."
       });
     }

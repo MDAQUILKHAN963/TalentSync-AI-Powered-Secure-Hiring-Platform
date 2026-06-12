@@ -25,6 +25,18 @@ const CompanySchema = new mongoose.Schema({
     enum: ['pending', 'verified', 'rejected'],
     default: 'pending'
   },
+  verificationReasons: [{
+    type: String
+  }],
+  verificationDocs: [{
+    docType: String,
+    fileName: String,
+    fileUrl: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   description: String,
   website: String,
   location: String,

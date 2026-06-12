@@ -29,13 +29,28 @@ exports.getLatestNews = async (req, res) => {
       }
     }
 
-    // High-quality fallback artifacts
-    res.json([
-      { title: 'The Rise of AI Agents in Software Engineering', source: 'TalentSync Insights', url: '#', publishedAt: new Date().toISOString(), description: 'How autonomous agents are reshaping the CI/CD pipeline and code reviews.' },
-      { title: 'Next.js 15 Features Every Developer Should Know', source: 'Frontend Weekly', url: '#', publishedAt: new Date().toISOString(), description: 'A deep dive into the new partial prerelease and hydration improvements.' },
-      { title: 'Why Rust is Becoming the Industry Standard for Systems', source: 'DevOps Journal', url: '#', publishedAt: new Date().toISOString(), description: 'Analyzing the performance and safety benefits making Rust indispensable for cloud infra.' },
-      { title: 'Quantum Computing: Ready for Production by 2027?', source: 'Future Tech', url: '#', publishedAt: new Date().toISOString(), description: 'Leading researchers discuss the timeline for quantum advantage in cryptography.' }
-    ]);
+    // No NewsAPI key — fetch live tech news from Hacker News (free, no key required)
+    try {
+      const hnRes = await axios.get('https://hn.algolia.com/api/v1/search', {
+        params: { tags: 'front_page', hitsPerPage: 10 },
+        timeout: 8000
+      });
+
+      const articles = (hnRes.data?.hits || []).map(hit => ({
+        title: hit.title,
+        source: 'Hacker News',
+        url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+        publishedAt: hit.created_at,
+        description: `${hit.points || 0} points · ${hit.num_comments || 0} comments · by ${hit.author}`
+      }));
+
+      if (articles.length > 0) return res.json(articles);
+    } catch (hnErr) {
+      console.warn('Hacker News fetch failed:', hnErr.message);
+    }
+
+    // Nothing reachable — return empty list honestly rather than fake articles
+    res.json([]);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

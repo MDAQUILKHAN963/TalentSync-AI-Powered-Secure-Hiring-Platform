@@ -1,50 +1,74 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Clock, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
+import { ShieldCheck, Clock, AlertCircle, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
 import './VerificationStatus.css';
 
 const STATUS_CONFIG = {
-  verified: { 
-    icon: ShieldCheck, 
-    label: 'Government Verified', 
-    color: '#10b981', 
-    bg: 'rgba(16,185,129,0.08)', 
-    border: 'rgba(16,185,129,0.2)', 
-    msg: 'Your company has been successfully verified. You can now post unlimited jobs and access all platform features.' 
+  verified: {
+    icon: ShieldCheck,
+    label: 'Government Verified',
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.08)',
+    border: 'rgba(16,185,129,0.2)',
+    msg: 'Your company has been successfully verified. You can now post unlimited jobs and access all platform features.'
   },
-  pending: { 
-    icon: Clock, 
-    label: 'Under Review', 
-    color: '#f59e0b', 
-    bg: 'rgba(245,158,11,0.08)', 
-    border: 'rgba(245,158,11,0.2)', 
-    msg: 'Your verification documents are being reviewed by government authorities. This typically takes 2–5 business days.' 
+  pending: {
+    icon: Clock,
+    label: 'Under Review',
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.08)',
+    border: 'rgba(245,158,11,0.2)',
+    msg: 'Your verification documents are being reviewed. You will be able to post jobs once approved.'
   },
-  rejected: { 
-    icon: AlertCircle, 
-    label: 'Verification Rejected', 
-    color: '#ef4444', 
-    bg: 'rgba(239,68,68,0.08)', 
-    border: 'rgba(239,68,68,0.2)', 
-    msg: 'Your verification was rejected. Please review the reasons below and resubmit updated documents.' 
+  rejected: {
+    icon: AlertCircle,
+    label: 'Verification Rejected',
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.08)',
+    border: 'rgba(239,68,68,0.2)',
+    msg: 'Your verification was rejected — the registration ID or GST/CIN details could not be validated. Please resubmit with valid government registration details.'
   },
 };
 
 export default function VerificationStatus({ forcedPending = false }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  
-  // Use user's status, but allow override for onboarding preview
-  const status = forcedPending ? 'pending' : (user?.isVerified ? 'verified' : 'pending');
-  
+  const [company, setCompany] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    axios.get('/api/company/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => setCompany(res.data))
+      .catch(err => setError(err.response?.data?.message || 'Failed to load verification status'));
+  }, []);
+
+  if (error) return <div className="vs-page"><p style={{ color: '#f87171' }}>{error}</p></div>;
+  if (!company) {
+    return (
+      <div className="vs-page" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Loader2 className="animate-spin" size={20} /> Checking verification status...
+      </div>
+    );
+  }
+
+  const status = company.verifiedStatus || 'pending';
   const cfg = STATUS_CONFIG[status];
   const Icon = cfg.icon;
 
+  const submittedDate = new Date(company.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const decidedDate = new Date(company.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const decided = status !== 'pending';
+
   const timeline = [
-    { label: 'Application Submitted', date: 'Today', done: true },
-    { label: 'Documents Uploaded', date: 'Today', done: true },
-    { label: 'Government Review', date: 'Estimated: 2-3 days', done: false },
-    { label: 'Final Approval', date: 'Pending', done: false },
+    { label: 'Application Submitted', date: submittedDate, done: true },
+    { label: 'Registration Details Received', date: submittedDate, done: true },
+    { label: 'Government Registry Check', date: decided ? decidedDate : 'In progress', done: decided },
+    {
+      label: status === 'rejected' ? 'Verification Rejected' : 'Final Approval',
+      date: decided ? decidedDate : 'Pending',
+      done: decided
+    },
   ];
 
   return (
@@ -57,7 +81,7 @@ export default function VerificationStatus({ forcedPending = false }) {
           </div>
         )}
         <h1>Verification Status</h1>
-        <p>Government verification allows you to post unlimited jobs and builds trust with candidates.</p>
+        <p>Government verification allows you to post jobs and builds trust with candidates.</p>
       </div>
 
       {/* Status Card */}
@@ -68,6 +92,9 @@ export default function VerificationStatus({ forcedPending = false }) {
         <div className="status-text">
           <h2 style={{ color: cfg.color }}>{cfg.label}</h2>
           <p>{cfg.msg}</p>
+          <p style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
+            Reg ID: {company.govRegId} · GST/CIN: {company.gstCin}
+          </p>
         </div>
       </div>
 
@@ -94,10 +121,10 @@ export default function VerificationStatus({ forcedPending = false }) {
           <h3>Why get verified?</h3>
           <div className="benefits-list-mini">
             {[
-              { emoji: '✅', title: 'Unlimited Job Posts' },
-              { emoji: '🔍', title: 'Priority Search Ranking' },
-              { emoji: '🛡️', title: 'Trust Badge' },
-              { emoji: '📊', title: 'Advanced Analytics' }
+              { emoji: '✅', title: 'Post Job Listings' },
+              { emoji: '🛡️', title: 'Verified Trust Badge' },
+              { emoji: '👥', title: 'Access Candidate Pipeline' },
+              { emoji: '🤖', title: 'AI-Matched Applicants' }
             ].map((b) => (
               <div key={b.title} className="benefit-mini-item">
                 <span className="b-emoji">{b.emoji}</span>

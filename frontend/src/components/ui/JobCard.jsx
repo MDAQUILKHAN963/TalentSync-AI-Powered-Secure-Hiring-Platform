@@ -7,16 +7,16 @@ export default function JobCard({ job, onApply, onToggleSave, isSaved }) {
   const navigate = useNavigate();
 
   const {
-    id = 1,
-    title = 'Software Engineer',
-    company = 'TechCorp',
-    location = 'Remote',
-    salary = '$80k – $110k',
+    id,
+    title = '',
+    company = '',
+    location = 'Not specified',
+    salary = 'Not disclosed',
     type = 'Full-time',
-    tags = ['React', 'Node.js', 'MongoDB'],
-    posted = '2 days ago',
+    tags = [],
+    posted = '',
     logo,
-    verified = true,
+    verified = false,
   } = job || {};
 
   const goToDetails = () => {

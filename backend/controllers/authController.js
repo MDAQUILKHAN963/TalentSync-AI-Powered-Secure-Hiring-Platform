@@ -4,6 +4,7 @@ const Company = require('../models/Company');
 const Faculty = require('../models/Faculty');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { verifyCompanyRegistration } = require('../services/govVerificationService');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -49,18 +50,23 @@ exports.register = async (req, res) => {
         skills: []
       });
     } else if (user.role === 'company') {
-      // Mock Government Verification for company
-      const isGovValid = regId?.startsWith('GOV') && (gstNumber?.length || 0) >= 10;
-      const verifiedStatus = isGovValid ? 'verified' : 'rejected';
+      // Government registration verification:
+      // CIN structure (MCA format) + GSTIN with official GSTN check-digit algorithm.
+      // Uses a live registry API if configured, otherwise offline checksum validation.
+      const verification = await verifyCompanyRegistration(regId, gstNumber);
 
       await Company.create({
         user: user._id,
         companyName: companyName || firstName,
-        govRegId: regId,
-        gstCin: gstNumber,
+        govRegId: (regId || '').toUpperCase().trim(),
+        gstCin: (gstNumber || '').toUpperCase().trim(),
         location: hqAddress,
-        verifiedStatus
+        verifiedStatus: verification.status,
+        verificationReasons: verification.reasons
       });
+
+      // Surface the verdict to the frontend
+      res.locals.verification = verification;
     } else if (user.role === 'faculty') {
       await Faculty.create({
         user: user._id,
@@ -75,7 +81,11 @@ exports.register = async (req, res) => {
         _id: user._id,
         name: `${user.firstName} ${user.lastName}`.trim(),
         email: user.email,
-        role: user.role
+        role: user.role,
+        ...(res.locals.verification ? {
+          verified: res.locals.verification.status === 'verified',
+          verificationReasons: res.locals.verification.reasons
+        } : {})
       },
       token: generateToken(user._id)
     });
@@ -86,6 +96,33 @@ exports.register = async (req, res) => {
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+};
+
+// @desc    Change password (any logged-in user)
+// @route   PUT /api/auth/password
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
