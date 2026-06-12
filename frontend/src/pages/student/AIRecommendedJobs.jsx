@@ -94,6 +94,11 @@ export default function AIRecommendedJobs() {
   });
 
   const handleApply = (job) => {
+    // External (aggregated) listings are applied to on the company's own site
+    if (job.applyUrl) {
+      window.open(job.applyUrl, '_blank', 'noopener');
+      return;
+    }
     navigate(`/dashboard/student/apply/${job.id || job._id}`);
   };
 
@@ -111,6 +116,11 @@ export default function AIRecommendedJobs() {
   // Final safety check for filtered
   const safeFiltered = Array.isArray(filtered) ? filtered : [];
 
+  // Real top match score across all recommended jobs
+  const topMatch = (jobs || []).length > 0
+    ? Math.round(Math.max(...jobs.map(j => j?.match || 0)))
+    : 0;
+
   return (
     <div className="ai-jobs-page">
       <div className="ai-jobs-hero">
@@ -122,9 +132,9 @@ export default function AIRecommendedJobs() {
         <div className="match-ring">
           <svg viewBox="0 0 100 100" className="ring-svg">
             <circle cx="50" cy="50" r="40" className="ring-bg" />
-            <circle cx="50" cy="50" r="40" className="ring-fill" strokeDasharray={`${96 * 2.51} 251`} />
+            <circle cx="50" cy="50" r="40" className="ring-fill" strokeDasharray={`${topMatch * 2.51} 251`} />
           </svg>
-          <div className="ring-label"><span>96%</span><small>Top Match</small></div>
+          <div className="ring-label"><span>{topMatch}%</span><small>Top Match</small></div>
         </div>
       </div>
 

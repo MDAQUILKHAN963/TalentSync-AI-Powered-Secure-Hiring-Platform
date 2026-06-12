@@ -371,4 +371,4 @@ function generateTips(skills, educationLevel, experienceYears) {
   return tips.slice(0, 4);
 }
 
-module.exports = { parseResume };
+module.exports = { parseResume, SKILL_KEYWORDS };

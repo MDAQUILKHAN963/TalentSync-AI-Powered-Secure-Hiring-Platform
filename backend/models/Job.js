@@ -1,10 +1,23 @@
 const mongoose = require('mongoose');
 
 const JobSchema = new mongoose.Schema({
+  // Platform jobs reference a verified Company; external (aggregated) jobs don't
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    required: true
+    required: function () { return this.source !== 'external'; }
+  },
+  source: {
+    type: String,
+    enum: ['platform', 'external'],
+    default: 'platform'
+  },
+  externalCompanyName: String,
+  externalSource: String, // e.g. 'arbeitnow', 'remotive'
+  applyUrl: {
+    type: String,
+    unique: true,
+    sparse: true // only external jobs have one
   },
   title: {
     type: String,

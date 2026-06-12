@@ -3,6 +3,7 @@ const Job = require('../models/Job');
 const Application = require('../models/Application');
 const { rankJobs, matchCandidateToJob } = require('../services/matchingService');
 const { timeAgo } = require('../utils/timeAgo');
+const { normalizeJob } = require('../utils/normalizeJob');
 
 // @desc    Get current student profile
 // @route   GET /api/student/profile
@@ -107,7 +108,7 @@ exports.getRecommendations = async (req, res) => {
     const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry verifiedStatus');
     
     if (!student.skills || student.skills.length === 0) {
-      return res.json(jobs.map(j => ({ ...j.toObject(), match: 0, matchData: null })));
+      return res.json(jobs.map(j => ({ ...normalizeJob(j), match: 0, matchData: null })));
     }
 
     // Use built-in matching engine (no Python dependency)
@@ -117,7 +118,7 @@ exports.getRecommendations = async (req, res) => {
       experience_years: student.experience_years || 0
     };
 
-    const rankedJobs = rankJobs(candidateData, jobs);
+    const rankedJobs = rankJobs(candidateData, jobs.map(normalizeJob));
 
     const elapsedMs = Date.now() - startTime;
     res.set('X-Response-Time', `${elapsedMs}ms`);

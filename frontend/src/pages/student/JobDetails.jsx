@@ -144,12 +144,24 @@ export default function JobDetails() {
             </div>
 
             <div className="hero-ctas">
-              <button
-                className="btn-primary-large"
-                onClick={() => navigate(`/dashboard/student/apply/${jobId}`)}
-              >
-                Apply for this Position
-              </button>
+              {job.applyUrl ? (
+                <a
+                  className="btn-primary-large"
+                  href={job.applyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none', textAlign: 'center' }}
+                >
+                  Apply on Company Site ↗
+                </a>
+              ) : (
+                <button
+                  className="btn-primary-large"
+                  onClick={() => navigate(`/dashboard/student/apply/${jobId}`)}
+                >
+                  Apply for this Position
+                </button>
+              )}
               <button className="btn-secondary-large" onClick={toggleSave}>
                 {saved ? 'Saved ✓' : 'Save for Later'}
               </button>

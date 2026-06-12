@@ -41,6 +41,11 @@ export default function JobCard({ job, onApply, onToggleSave, isSaved }) {
         <div className="company-info" onClick={goToDetails} style={{ cursor: 'pointer' }}>
           <span className="company-name">{company}</span>
           {verified && <span className="verified-pill">✓ Verified</span>}
+          {job?.source === 'external' && (
+            <span className="verified-pill" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+              🌐 From the Web
+            </span>
+          )}
         </div>
         <button
           className={`save-btn ${isSaved ? 'saved' : ''}`}
@@ -68,7 +73,7 @@ export default function JobCard({ job, onApply, onToggleSave, isSaved }) {
       <div className="job-card-footer">
         <span className="posted-date">{posted}</span>
         <button className="apply-btn" onClick={() => onApply?.(job)}>
-          Apply Now <ArrowRight size={14} />
+          {job?.applyUrl ? 'Apply on Site' : 'Apply Now'} <ArrowRight size={14} />
         </button>
       </div>
     </div>

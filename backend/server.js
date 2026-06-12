@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
 const seedDatabase = require('./seed');
+const { ingestExternalJobs } = require('./services/jobIngestionService');
 
 // Route Imports
 const authRoutes = require('./routes/auth');
@@ -15,8 +16,9 @@ const studentRoutes = require('./routes/student');
 const companyRoutes = require('./routes/company');
 
 // Connect to MongoDB
-connectDB().then(() => {
-  seedDatabase();
+connectDB().then(async () => {
+  await seedDatabase();
+  ingestExternalJobs(); // live jobs from public job-board APIs (non-blocking)
 });
 
 const app = express();

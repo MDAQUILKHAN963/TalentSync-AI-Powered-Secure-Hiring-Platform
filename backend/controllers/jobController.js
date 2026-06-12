@@ -5,6 +5,7 @@ const Student = require('../models/Student');
 const axios = require('axios');
 const { matchCandidateToJob } = require('../services/matchingService');
 const { detectFraud } = require('../services/fraudDetectionService');
+const { normalizeJob } = require('../utils/normalizeJob');
 
 // @desc    Create a new job
 // @route   POST /api/jobs
@@ -73,7 +74,7 @@ exports.createJob = async (req, res) => {
 exports.getJobs = async (req, res) => {
   try {
     const jobs = await Job.find({ status: 'open' }).populate('company', 'companyName location industry verifiedStatus');
-    res.json(jobs);
+    res.json(jobs.map(normalizeJob));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -93,7 +94,7 @@ exports.getJobById = async (req, res) => {
 
     const applicantCount = await Application.countDocuments({ job: job._id });
 
-    res.json({ ...job.toObject(), applicantCount });
+    res.json({ ...normalizeJob(job), applicantCount });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -150,6 +151,14 @@ exports.applyJob = async (req, res) => {
     const student = await Student.findOne({ user: req.user._id });
     if (!student) {
       return res.status(404).json({ message: 'Student profile not found' });
+    }
+
+    const targetJob = await Job.findById(req.params.id);
+    if (targetJob && targetJob.source === 'external') {
+      return res.status(400).json({
+        message: 'This is an external listing — apply on the company site',
+        applyUrl: targetJob.applyUrl
+      });
     }
 
     const alreadyApplied = await Application.findOne({
